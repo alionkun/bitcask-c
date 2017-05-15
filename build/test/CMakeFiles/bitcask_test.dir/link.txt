@@ -1,1 +1,0 @@
-/usr/bin/gcc  -std=c99 -g    CMakeFiles/bitcask_test.dir/bitcask_test.o CMakeFiles/bitcask_test.dir/__/src/bitcask.o  -o bitcask_test -rdynamic 

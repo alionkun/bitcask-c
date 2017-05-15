@@ -1,4 +1,0 @@
-/home/lwk/code/projects/bitcask/build/test/CMakeFiles/bc_add.dir
-/home/lwk/code/projects/bitcask/build/test/CMakeFiles/bc_dump.dir
-/home/lwk/code/projects/bitcask/build/test/CMakeFiles/bc_get.dir
-/home/lwk/code/projects/bitcask/build/test/CMakeFiles/bitcask_test.dir
