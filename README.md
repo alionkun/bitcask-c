@@ -1,0 +1,3 @@
+# bitcask-c
+
+still building
