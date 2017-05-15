@@ -1,0 +1,1 @@
+/usr/bin/gcc  -std=c99 -g    CMakeFiles/bc_get.dir/bc_get.o CMakeFiles/bc_get.dir/__/src/bitcask.o  -o bc_get -rdynamic 

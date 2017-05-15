@@ -26,21 +26,14 @@ int main(int argc, const char** argv)
 	bitcask_dump_info(&bc);
 
 	{
-		char* key = "id_11111";
-		char* data = "1234567890";
+		char key[64];
+		sprintf(key, "id_%d", time(NULL));
+		char* data = "1234567890-abcdef-xxxxxxxxxxx";
 		ret = bitcask_add(&bc, key, strlen(key), data, strlen(data));
 		printf("bitcask_add() ret=%d\n", ret);
 
 		bitcask_dump_info(&bc);
 	}
 
-	{
-		char* key = "id_22";
-		char* data = "abc";
-		ret = bitcask_add(&bc, key, strlen(key), data, strlen(data));
-		printf("bitcask_add() ret=%d\n", ret);
-
-		bitcask_dump_info(&bc);
-	}
 	return 0;
 }

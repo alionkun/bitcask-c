@@ -182,7 +182,7 @@ int _read_item_from_fd(int fd, uint32_t* crc, uint64_t* ts_ms, uint16_t* key_len
 		printf("read current data file done.\n");
 		return 0;
 	}
-	printf("crc=%d\n", *crc);
+	//printf("crc=%d\n", *crc);
 
 	len = sizeof(*ts_ms);
 	ret = read(fd, ts_ms, len);
@@ -191,7 +191,7 @@ int _read_item_from_fd(int fd, uint32_t* crc, uint64_t* ts_ms, uint16_t* key_len
 		printf("read ts_ms fail. ret=%d, errno=%d\n", ret, errno);
 		return -1;
 	}
-	printf("ts_ms=%ld\n", *ts_ms);
+	//printf("ts_ms=%ld\n", *ts_ms);
 
 	len = sizeof(*key_len);
 	ret = read(fd, key_len, len);
@@ -200,7 +200,7 @@ int _read_item_from_fd(int fd, uint32_t* crc, uint64_t* ts_ms, uint16_t* key_len
 		printf("read key_len fail. ret=%d, errno=%d\n", ret, errno);
 		return -1;
 	}
-	printf("key_len=%d\n", *key_len);
+	//printf("key_len=%d\n", *key_len);
 
 	len = sizeof(*value_len);
 	ret = read(fd, value_len, len);
@@ -209,7 +209,7 @@ int _read_item_from_fd(int fd, uint32_t* crc, uint64_t* ts_ms, uint16_t* key_len
 		printf("read value_len fail. ret=%d, errno=%d\n", ret, errno);
 		return -1;
 	}
-	printf("value_len=%d\n", *value_len);
+	//printf("value_len=%d\n", *value_len);
 
 	*key = (char*)malloc(*key_len);
 	len = *key_len;
@@ -260,6 +260,8 @@ int _build_index(bitcask* bc)
 			item->value_len = value_len;
 			item->file_pos = pos;
 			item->ts = ts_ms;
+			
+			bc->active_file_position = lseek(fd, 0, SEEK_CUR);
 		}
 	}
 
@@ -444,9 +446,37 @@ void bitcask_dump_info(bitcask* bc)
 		{
 			printf("table[%d] item: key_len=%d, file_id=%d, value_len=%d, file_pos=%d, ts=%ld\n",
 					i, item->key_len, item->file_id, item->value_len, item->file_pos, item->ts);
+			printf("key=%s\n", item->key);
 			item = item->next;
 		}
 	}
+}
+
+
+int bitcask_get(bitcask* bc, const void* key, uint16_t key_len, void* value, uint32_t* value_len)
+{
+	bitcask_item* item = _hash_table_find(bc->item_table, key, key_len);
+	if (!item)
+	{
+		printf("key=%s not exist\n", key);
+		return -1;
+	}
+	if (item->value_len > *value_len)
+	{
+		printf("value_len to small, expected=%d\n", item->value_len);
+		return -2;
+	}
+	int fd = bc->data_file_fds[item->file_id];
+	uint32_t value_position = item->file_pos + 4 + 8 + 2 + 4 + item->key_len;
+	lseek(fd, value_position, SEEK_SET);
+	int len = read(fd, value, item->value_len);
+	if (len != item->value_len)
+	{
+		printf("read() fail. ret=%d, errno=%d\n", len, errno);
+		return -3;
+	}
+	*value_len = item->value_len;
+	return 0;
 }
 
 
