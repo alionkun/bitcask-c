@@ -1,0 +1,4 @@
+PROJECT(bitcask)
+
+ADD_SUBDIRECTORY(test)
+
