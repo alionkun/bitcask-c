@@ -9,6 +9,14 @@ enum EC
 	ec_dont_exist    = 401;
 }
 
+enum OP_TYPE
+{
+	op_add = 1;
+	op_del = 2;
+	op_set = 3;
+	op_get = 4;
+}
+
 message KV
 {
 	optional string key = 1;
@@ -16,20 +24,17 @@ message KV
 	optional uint32 ec = 3;
 }
 
-message AddReq
+message KvReq
 {
-	repeated KV kv_list = 1;
+	optional OP_TYPE op_type = 1;
+	repeated KV kv_list      = 2;
 }
 
-message AddRsp
+message KvRsq
 {
-	repeated KV kv_list = 1;
+	optional OP_TYPE op_type = 1;
+	repeated KV kv_list = 2;
 }
-
-
-
-
-
 
 
 
