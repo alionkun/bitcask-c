@@ -30,7 +30,7 @@ message KvReq
 	repeated KV kv_list      = 2;
 }
 
-message KvRsq
+message KvRsp
 {
 	optional OP_TYPE op_type = 1;
 	repeated KV kv_list = 2;

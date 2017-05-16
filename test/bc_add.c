@@ -32,9 +32,9 @@ int main(int argc, const char** argv)
 		uint64_t ts_ms = tv.tv_sec * 1000 + tv.tv_usec/1000;
 
 		char key[64];
-		sprintf(key, "id_%ld", ts_ms);
+		sprintf(key, "id_%d", i);
 		char data[1024];
-		sprintf(data, "value_1234567890-%ld-abcdef-xxxxxxxx", ts_ms);
+		sprintf(data, "value_1234567890-%d-abcdef-xxxxxxxx", i);
 		ret = bitcask_add(&bc, key, strlen(key), data, strlen(data));
 		printf("bitcask_add() ret=%d\n", ret);
 

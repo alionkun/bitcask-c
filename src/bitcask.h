@@ -40,14 +40,19 @@ bitcask_item* _hash_table_add(bitcask_item** table, const void* key, uint16_t ke
 
 int bitcask_init(bitcask* bc, const char* dir);
 
+/* add when not exist */
 int bitcask_add(bitcask* bc, const void* key, uint16_t key_len, const void* value, uint32_t value_len);
 
+/* delete */
 int bitcask_delete(bitcask* bc, const void* key, uint16_t key_len);
 
-int bitcask_update(bitcask* bc, const void* key, uint16_t key_len, const void* value, uint32_t value_len);
+/* set anyway */
+int bitcask_set(bitcask* bc, const void* key, uint16_t key_len, const void* value, uint32_t value_len);
 
+/* get */
 int bitcask_get(bitcask* bc, const void* key, uint16_t key_len, void* value, uint32_t* value_len);
 
+/* merge */
 int bitcask_merge();
 
 void bitcask_dump_info(bitcask* bc);

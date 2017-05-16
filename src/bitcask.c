@@ -45,59 +45,6 @@ int isNumber(const char* s)
 	return 1;
 }
 
-#if 0
-int _bitcask_check_data_file(bitcask* bc, const char* filename)
-{
-	char* find = strstr(filename, ".dat");
-	if (!find)
-	{
-		return 1;
-	}
-	if (find+4 != filename+strlen(filename))
-	{
-		return 1;
-	}
-	char prefix[256];
-	strncpy(prefix, filename, strlen(filename)-4);
-	if (!isNumber(prefix))
-	{
-		return 1;
-	}
-	int32_t index = atoi(prefix);
-	if (0 < index || index >= MAX_DATA_FILE_COUNT)
-	{
-		return 1;
-	}
-	strncpy(bc->data_file_names[index], prefix, 64);
-	return 0;
-}
-
-int _bitcask_read_dir(bitcask* bc, const char* dir_name)
-{
-	DIR* dir = opendir(dir_name);
-	if (!dir)
-	{
-		printf("opendir(%s) fail. errno=%d, errmsg=%s\n", dir_name, errno, strerror(errno));
-		return 1;
-	}
-	struct dirent dirent, *p_dirent;
-	while (1)
-	{
-		int ret = readdir_r(dir, &dirent, &p_dirent);
-		if (ret)
-		{
-			printf("readdir_r() fail. ret=%d\n", ret);
-			break;
-		}
-		if (!p_dirent)
-		{
-			break;
-		}
-		_bitcask_check_data_file(bc, dirent.d_name);
-	}
-	return 0;
-}
-#endif
 
 int _bitcask_open_current_file(bitcask* bc)
 {
@@ -165,7 +112,7 @@ int _try_open_all_data_file(bitcask* bc)
 	return 0;
 }
 
-int _read_item_from_fd(int fd, uint32_t* crc, uint64_t* ts_ms, uint16_t* key_len, uint32_t* value_len, void** key)
+int _read_item_from_fd(int fd, uint32_t* crc, uint32_t* ts, uint16_t* flag, uint16_t* key_len, uint32_t* value_len, void** key)
 {
 	int ret;
 	uint32_t len;
@@ -184,14 +131,23 @@ int _read_item_from_fd(int fd, uint32_t* crc, uint64_t* ts_ms, uint16_t* key_len
 	}
 	//printf("crc=%d\n", *crc);
 
-	len = sizeof(*ts_ms);
-	ret = read(fd, ts_ms, len);
+	len = sizeof(*ts);
+	ret = read(fd, ts, len);
 	if (ret != len)
 	{
-		printf("read ts_ms fail. ret=%d, errno=%d\n", ret, errno);
+		printf("read ts fail. ret=%d, errno=%d\n", ret, errno);
 		return -1;
 	}
-	//printf("ts_ms=%ld\n", *ts_ms);
+	//printf("ts=%ld\n", *ts);
+
+	len = sizeof(*flag);
+	ret = read(fd, flag, len);
+	if (ret != len)
+	{
+		printf("read flag fail. ret=%d, errno=%d\n", ret, errno);
+		return -1;
+	}
+	//printf("flag=%ld\n", *flag);
 
 	len = sizeof(*key_len);
 	ret = read(fd, key_len, len);
@@ -233,16 +189,17 @@ int _build_index(bitcask* bc)
 		int fd = bc->data_file_fds[i];
 		assert(fd != -1);
 		lseek(fd, 0, SEEK_SET);
-		/* crc(32) ts_ms(64) key_len(16) value_len(32) key value */
+		/* crc(32) ts(32) flag(16) key_len(16) value_len(32) key value */
 		while (1)
 		{
 			uint32_t crc;
-			uint64_t ts_ms;
+			uint32_t ts;
+			uint16_t flag;
 			uint16_t key_len;
 			uint32_t value_len;
 			void* key;
 			uint32_t pos = lseek(fd, 0, SEEK_CUR);
-			int ret = _read_item_from_fd(fd, &crc, &ts_ms, &key_len, &value_len, &key);
+			int ret = _read_item_from_fd(fd, &crc, &ts, &flag, &key_len, &value_len, &key);
 			if (ret < 0)
 			{
 				return -1;
@@ -250,6 +207,10 @@ int _build_index(bitcask* bc)
 			if (ret == 0)
 			{
 				break;//done
+			}
+			if (flag & 0x1)
+			{
+				continue;//deleted
 			}
 			bitcask_item* item = _hash_table_find(bc->item_table, key, key_len);
 			if (!item)
@@ -259,7 +220,7 @@ int _build_index(bitcask* bc)
 			item->file_id = i;
 			item->value_len = value_len;
 			item->file_pos = pos;
-			item->ts = ts_ms;
+			item->ts = ts;
 			
 			bc->active_file_position = lseek(fd, 0, SEEK_CUR);
 		}
@@ -290,7 +251,7 @@ int bitcask_init(bitcask* bc, const char* dir_name)
 	{
 		bc->item_table[i] = NULL;
 	}
-
+	bc->active_file_index = -1;
 	bc->active_file_position = 0;
 
 	int ret;
@@ -315,21 +276,25 @@ int bitcask_init(bitcask* bc, const char* dir_name)
 	return 0;
 }
 
-int _write_kv(bitcask* bc, const void* key, uint16_t key_len, const void* value, uint32_t value_len, uint64_t ts_ms)
+int _write_kv(bitcask* bc, const void* key, uint16_t key_len, const void* value, uint32_t value_len, uint32_t ts, uint16_t flag)
 {
 	int32_t index = bc->active_file_index;
 	int fd = bc->data_file_fds[index];
-	uint32_t crc32 = 0;
 	char buf[1024*1024];
 	uint32_t len = 0;
 
-	//crc32
-	memcpy(&buf[len], &crc32, sizeof(crc32));
-	len += sizeof(crc32);
+	//crc
+	uint32_t crc = 0;
+	memcpy(&buf[len], &crc, sizeof(crc));
+	len += sizeof(crc);
 
-	//ts_ms
-	memcpy(&buf[len], &ts_ms, sizeof(ts_ms));
-	len += sizeof(ts_ms);
+	//ts
+	memcpy(&buf[len], &ts, sizeof(ts));
+	len += sizeof(ts);
+
+	//flag
+	memcpy(&buf[len], &flag, sizeof(flag));
+	len += sizeof(flag);
 
 	//key_len
 	memcpy(&buf[len], &key_len, sizeof(key_len));
@@ -397,33 +362,97 @@ bitcask_item* _hash_table_add(bitcask_item** table, const void* key, uint16_t ke
 	}
 }
 
+
 int bitcask_add(bitcask* bc, const void* key, uint16_t key_len, const void* value, uint32_t value_len)
 {
-	uint32_t active_file_old_position = bc->active_file_position;
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	uint64_t ts_ms = tv.tv_sec * 1000 + tv.tv_usec/1000;
+	bitcask_item* item = _hash_table_find(bc->item_table, key, key_len);
+	if (item)
+	{
+		return 1;
+	}
+	return bitcask_set(bc, key, key_len, value, value_len);
+}
 
-	int ret = _write_kv(bc, key, key_len, value, value_len, ts_ms);
+
+int bitcask_del(bitcask* bc, const void* key, uint16_t key_len)
+{
+
+}
+
+
+int bitcask_set(bitcask* bc, const void* key, uint16_t key_len, const void* value, uint32_t value_len)
+{
+	uint32_t active_file_old_position = bc->active_file_position;
+	uint32_t ts = time(NULL);
+
+	int ret = _write_kv(bc, key, key_len, value, value_len, ts, 0);
 	if (ret)
 	{
 		printf("_write_kv() fail. ret=%s\n", ret);
-		return ret;
+		return -1;
 	}
-
 
 	bitcask_item* item = _hash_table_find(bc->item_table, key, key_len);
 	if (!item)
 	{
 		item = _hash_table_add(bc->item_table, key, key_len);
 	}
+	else
+	{
+		//mark on disk
+		int fd = bc->data_file_fds[item->file_id];
+		lseek(fd, item->file_pos + 4 + 4, SEEK_SET);
+		uint16_t flag;
+		int ret = read(fd, &flag, sizeof(flag));
+		if (ret != sizeof(flag))
+		{
+			printf("read() fail. ret=%d, errno=%d\n", ret, errno);
+			return -1;
+		}
+		flag |= 0x1; //means deleted
+		lseek(fd, 0-sizeof(flag), SEEK_CUR);
+		ret = write(fd, &flag, sizeof(flag));
+		if (ret != sizeof(flag))
+		{
+			printf("write() fail. ret=%d, errno=%d\n", ret, errno);
+			return -1;
+		}
+	}
 	item->file_id = bc->active_file_index;
 	item->value_len = value_len;
 	item->file_pos = active_file_old_position;
-	item->ts = ts_ms;
+	item->ts = ts;
 
 	return 0;
 }
+
+
+int bitcask_get(bitcask* bc, const void* key, uint16_t key_len, void* value, uint32_t* value_len)
+{
+	bitcask_item* item = _hash_table_find(bc->item_table, key, key_len);
+	if (!item)
+	{
+		printf("key=%s not exist\n", key);
+		return -1;
+	}
+	if (item->value_len > *value_len)
+	{
+		printf("value_len to small, expected=%d\n", item->value_len);
+		return -2;
+	}
+	int fd = bc->data_file_fds[item->file_id];
+	uint32_t value_position = item->file_pos + 4 + 4 + 2 + 2 + 4 + item->key_len;
+	lseek(fd, value_position, SEEK_SET);
+	int len = read(fd, value, item->value_len);
+	if (len != item->value_len)
+	{
+		printf("read() fail. ret=%d, errno=%d\n", len, errno);
+		return -3;
+	}
+	*value_len = item->value_len;
+	return 0;
+}
+
 
 void bitcask_dump_info(bitcask* bc)
 {
@@ -453,30 +482,5 @@ void bitcask_dump_info(bitcask* bc)
 }
 
 
-int bitcask_get(bitcask* bc, const void* key, uint16_t key_len, void* value, uint32_t* value_len)
-{
-	bitcask_item* item = _hash_table_find(bc->item_table, key, key_len);
-	if (!item)
-	{
-		printf("key=%s not exist\n", key);
-		return -1;
-	}
-	if (item->value_len > *value_len)
-	{
-		printf("value_len to small, expected=%d\n", item->value_len);
-		return -2;
-	}
-	int fd = bc->data_file_fds[item->file_id];
-	uint32_t value_position = item->file_pos + 4 + 8 + 2 + 4 + item->key_len;
-	lseek(fd, value_position, SEEK_SET);
-	int len = read(fd, value, item->value_len);
-	if (len != item->value_len)
-	{
-		printf("read() fail. ret=%d, errno=%d\n", len, errno);
-		return -3;
-	}
-	*value_len = item->value_len;
-	return 0;
-}
 
 
