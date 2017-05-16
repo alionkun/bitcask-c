@@ -1,0 +1,35 @@
+
+package KVTest;
+
+
+enum EC
+{
+	ec_ok = 200;
+	ec_already_exist = 400;
+	ec_dont_exist    = 401;
+}
+
+message KV
+{
+	optional string key = 1;
+	optional string value = 2;
+	optional uint32 ec = 3;
+}
+
+message AddReq
+{
+	repeated KV kv_list = 1;
+}
+
+message AddRsp
+{
+	repeated KV kv_list = 1;
+}
+
+
+
+
+
+
+
+
