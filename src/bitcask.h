@@ -6,11 +6,21 @@
  ************************************************************************/
 #include <stdint.h>
 
+#define MAX_KEY_LEN (1<<10)
+#define MAX_VALUE_LEN (1<<20)
 
 #define MAX_DIRECTORY_LEN 1024
 #define MAX_DATA_FILE_COUNT 1024
 #define TABLE_SIZE 10000
 
+enum
+{
+	EC_OK = 0;
+	EC_IO_FAIL = 1;
+	EC_BAD_PARAM = 2;
+	EC_OBJ_EXIST = 3;
+	EC_OBJ_NOT_EXIST = 4;
+}
 
 typedef struct _bitcask_bitcask_item
 {

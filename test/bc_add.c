@@ -25,7 +25,7 @@ int main(int argc, const char** argv)
 		return 1;
 	}
 
-	for (int i = 0; i < 10000; i++)
+	for (int i = 0; i < 1000000; i++)
 	{
 		struct timeval tv;
 		gettimeofday(&tv, NULL);

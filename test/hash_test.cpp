@@ -12,8 +12,13 @@
 
 using namespace std;
 
-int main()
+int main(int argc, char** argv)
 {
+	if (argc == 2)
+	{
+		cout << BKDRHash(argv[1], strlen(argv[1])) << "\t" << argv[1] << endl;
+		return 0;
+	}
 	{
 		char* p = "hello_1";
 		cout << BKDRHash(p, strlen(p)) << "\t" << p << endl;
