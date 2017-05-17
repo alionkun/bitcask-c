@@ -1,0 +1,8 @@
+
+how to protect read operations from write operations on hash-table
+
+?mark with a delete flag for delete operations
+?add operations should be free with read operations beauce pointer assignment is automic
+
+
+
